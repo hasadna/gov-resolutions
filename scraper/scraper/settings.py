@@ -13,13 +13,14 @@ ITEM_PIPELINES = {
     'scraper.pipelines.ResolutionPipeline': 300,
 }
 
-CONCURRENT_REQUESTS = 30
+CONCURRENT_REQUESTS = 15
 CONCURRENT_REQUESTS_PER_DOMAIN = 30
+DOWNLOAD_DELAY = 0.50 # ms
 
 # RETRY_TIMES = 5
 
 # Enable and configure HTTP caching (disabled by default)
 # HTTPCACHE_ENABLED = True
 
-# LOG_ENABLED = False
+# LOG_ENABLED = True
 LOG_LEVEL = 'INFO'
