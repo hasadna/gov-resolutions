@@ -5,56 +5,56 @@ import scrapy
 from scraper.items import ResolutionItem
 
 
-class ResolutionSpider(scrapy.Spider):
+class ResolutionSessionSpider(scrapy.Spider):
+    """government resolutions spider using session data provided by pmo.gov.il website."""
     name = "resolutions"
     allowed_domains = ["www.pmo.gov.il"]
-    start_urls = ["http://www.pmo.gov.il/Secretary/GovDecisions/Pages/default.aspx"]
 
-    def should_retry(self, response):
-        """Sometimes body uses anti-scraping tricks.
-
-        e.g. body is:
-        <html><body><script>document.cookie='yyyyyyy=ea850ff3yyyyyyy_ea850ff3; path=/';window.location.href=window.location.href;</script></body></html>
-
-        Retrying usually yields a correct response.
-        """
-        if not response.body.startswith('<html><body><script>'):
-            return False
-
-        self.logger.debug('anti-scraping trick for url %s', response.url)
-
-        new_request = response.request.copy()
-        new_request.dont_filter = True  # don't de-duplicate the url for retrying
-
-        return new_request
+    start_urls = ["http://www.pmo.gov.il/Secretary/GovDecisions/Pages/default.aspx?PN=1"]
 
     def parse(self, response):
-        """Parse pages containing links to government resolutions."""
-        # check if response was bad
-        new_request = self.should_retry(response)
-        # retry if so
-        if new_request:
-            yield new_request
-            return
+        """submit a gov. resolution form for every gov. number and parse
 
-        # parse specific resolutions found in current page
+        there are 6 available governments, and their buttons are numbered 0 to 5.
+        this submits a form for each government separately,
+        since the gov. resolutions websites tends to get overloaded
+        and stop responding very quickly.
+        """
+        # iterate over each government by number (from 34 to 29)
+        for gov_num in reversed(range(6)):
+            # fuck if i know why in order to ask for a specific government,
+            # the header that needs to be set is this one,
+            # and its value needs to be the string "on"
+            # formdata = self._gov_num_static_formdata.copy()
+            formdata = {}
+            formdata["ctl00$ctl20$g_35b6db55_6fcf_4f5a_8632_254e3865d040$ctl00$cblGovernments$%s" % gov_num] = "on"
+
+            # "submit form" requesting all pages from all governments
+            # using previously given session headers
+            yield scrapy.FormRequest.from_response(response,
+                                                   formdata=formdata,
+                                                   callback=self.parse_form_result)
+
+    def parse_form_result(self, response):
+        """parse resolution list page."""
+        # parse resolutions found in current page
         for sel in response.xpath("//div[@id='GDSR']/div/a/@href"):
-            yield scrapy.Request(sel.extract(), callback=self.parse_resolution)
+            yield scrapy.Request(sel.extract(),
+                                 callback=self.parse_resolution)
 
         # parse next pages
+        # requires reusing (session) headers in order to keep form results
+        # for current government.
+        # otherwise the default results are returned, which are the latest 10
+        # resolutions from the current government.
         for sel in response.xpath("//a[@class='PMM-resultsPagingNumber']/@href"):
             url = response.urljoin(sel.extract())
-            yield scrapy.Request(url)
+            yield scrapy.Request(url,
+                                 headers=response.headers,
+                                 callback=self.parse_form_result)
 
     def parse_resolution(self, response):
-        """Scrape relevant fields in specific resolution response."""
-        # check if response was bad
-        new_request = self.should_retry(response)
-        # retry if so
-        if new_request:
-            yield new_request
-            return
-
+        """parse specific resolution page."""
         try:
             yield ResolutionItem(
                 url=response.url,
