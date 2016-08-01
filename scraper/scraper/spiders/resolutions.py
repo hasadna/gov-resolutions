@@ -1,16 +1,24 @@
 # -*- coding: utf-8 -*-
 
 import scrapy
-
+from scrapy import exceptions
 from scraper.items import ResolutionItem
 
 
-class ResolutionSessionSpider(scrapy.Spider):
+class ResolutionSpider(scrapy.Spider):
     """government resolutions spider using session data provided by pmo.gov.il website."""
     name = "resolutions"
     allowed_domains = ["www.pmo.gov.il"]
 
     start_urls = ["http://www.pmo.gov.il/Secretary/GovDecisions/Pages/default.aspx?PN=1"]
+
+    def __init__(self, gov_index="0", *args, **kwargs):
+        super(ResolutionSpider, self).__init__(*args, **kwargs)
+
+        i = int(gov_index)
+        if i < 0 or i > 6:
+            raise exceptions.CloseSpider("gov_index must be an integer in range 0-6")
+        self.gov_index = i
 
     def parse(self, response):
         """submit a gov. resolution form for every gov. number and parse
@@ -20,20 +28,19 @@ class ResolutionSessionSpider(scrapy.Spider):
         since the gov. resolutions websites tends to get overloaded
         and stop responding very quickly.
         """
-        # iterate over each government by number (from 34 to 29)
-        for gov_num in reversed(range(6)):
-            # fuck if i know why in order to ask for a specific government,
-            # the header that needs to be set is this one,
-            # and its value needs to be the string "on"
-            # formdata = self._gov_num_static_formdata.copy()
-            formdata = {}
-            formdata["ctl00$ctl20$g_35b6db55_6fcf_4f5a_8632_254e3865d040$ctl00$cblGovernments$%s" % gov_num] = "on"
+        # fuck if i know why in order to ask for a specific government,
+        # the header that needs to be set is this one,
+        # and its value needs to be the string "on"
+        # formdata = self._gov_num_static_formdata.copy()
+        formdata = {
+            "ctl00$ctl20$g_35b6db55_6fcf_4f5a_8632_254e3865d040$ctl00$cblGovernments$%s" % self.gov_index: "on"
+        }
 
-            # "submit form" requesting all pages from all governments
-            # using previously given session headers
-            yield scrapy.FormRequest.from_response(response,
-                                                   formdata=formdata,
-                                                   callback=self.parse_form_result)
+        # "submit form" requesting all pages from all governments
+        # using previously given session headers
+        yield scrapy.FormRequest.from_response(response,
+                                               formdata=formdata,
+                                               callback=self.parse_form_result)
 
     def parse_form_result(self, response):
         """parse resolution list page."""

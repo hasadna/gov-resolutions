@@ -4,19 +4,22 @@ import arrow
 import json
 import re
 
+from scrapy import signals
+from scrapy.exporters import JsonLinesItemExporter
+
 
 class ResolutionError(RuntimeError):
     """Raised when crawling resulted in unexpected results.
 
     e.g. multiple titles, empty bodies, etc.
     """
-
     pass
 
 
 class ResolutionPipeline(object):
     def __init__(self):
-        self.file = open("dump.json", "wb")
+        self.file = None
+        self.exporter = None
 
         # compile regular expressions:
 
@@ -27,6 +30,15 @@ class ResolutionPipeline(object):
         # input looks like 'ממשלה/הממשלה ה - 34 בנימין נתניהו;'
         # we need the government number (34) and prime minister name (בנימין נתניהו)
         self.gov_pattern = re.compile(r'^.+\s??\-\s?(?P<gov_number>.+?)\s+?(?P<pm_name>.+?);?$')
+
+    def open_spider(self, spider):
+        self.file = open("gov_%s.json" % spider.gov_index, "wb")
+        self.exporter = JsonLinesItemExporter(self.file, ensure_ascii=False)
+        self.exporter.start_exporting()
+
+    def close_spider(self, spider):
+        self.file.close()
+        self.exporter.finish_exporting()
 
     def process_item(self, item, spider):
         try:
@@ -41,14 +53,11 @@ class ResolutionPipeline(object):
                 'body': self.get_body(item),
             }
         except ResolutionError as ex:
-            dump = (json.dumps({'error': repr(ex), 'url': item["url"]},
-                               ensure_ascii=False)
-                    .encode("utf8"))
+            self.exporter.export_item({'error': repr(ex),
+                                       'url': item["url"],
+                                      })
         else:
-            # encode to utf-8 and dump to file
-            dump = json.dumps(data, ensure_ascii=False).encode("utf8")
-
-        self.file.write(dump + "\n")
+            self.exporter.export_item(data)
 
         return item
 
