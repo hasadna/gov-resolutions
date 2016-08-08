@@ -32,7 +32,8 @@ class ResolutionPipeline(object):
         self.gov_pattern = re.compile(r'^.+\s??\-\s?(?P<gov_number>.+?)\s+?(?P<pm_name>.+?);?$')
 
     def open_spider(self, spider):
-        self.file = open("gov_%s.json" % spider.gov_index, "wb")
+        """Initialize export JSON lines file."""
+        self.file = open("gov.json", "wb")
         self.exporter = JsonLinesItemExporter(self.file, ensure_ascii=False)
         self.exporter.start_exporting()
 

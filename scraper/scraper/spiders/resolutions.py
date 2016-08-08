@@ -12,13 +12,40 @@ class ResolutionSpider(scrapy.Spider):
 
     start_urls = ["http://www.pmo.gov.il/Secretary/GovDecisions/Pages/default.aspx?PN=1"]
 
-    def __init__(self, gov_index="0", *args, **kwargs):
+    # this is the form variable that needs to be set
+    # in a gov. resolution form request,
+    # in order to receive resolutions for a specific government number
+    #
+    # this var name looks like it was randomly chosen,
+    # but in fact it is constant and doesn't change
+    #
+    # the '%d' at the end should be set to integers 0-6
+    # in order to specifiy the government number that the form requests
+    #
+    # the value of this header should be "on"
+    gov_number_header_key = (
+        "ctl00"
+        "$ctl20$g_35b6db55_6fcf_4f5a_8632_254e3865d040$ctl00$cblGovernments"
+        "$%d"
+    )
+    gov_number_header_value = "on"
+
+    def __init__(self,
+                 # government numbers to scrape
+                 # 0-6 are all available governments
+                 gov_indexes="0,1,2,3,4,5,6",
+                 *args, **kwargs):
+
         super(ResolutionSpider, self).__init__(*args, **kwargs)
 
-        i = int(gov_index)
-        if i < 0 or i > 6:
-            raise exceptions.CloseSpider("gov_index must be an integer in range 0-6")
-        self.gov_index = i
+        # convert gov. indexes string to integer list
+        self.gov_indexes = [int(i) for i in gov_indexes.split(',')]
+
+        # validate values
+        for i in self.gov_indexes:
+            if i < 0 or i > 6:
+                raise exceptions.CloseSpider(
+                    "gov_indexes list can only include integers ranging 0-6")
 
     def parse(self, response):
         """submit a gov. resolution form for every gov. number and parse
@@ -28,19 +55,16 @@ class ResolutionSpider(scrapy.Spider):
         since the gov. resolutions websites tends to get overloaded
         and stop responding very quickly.
         """
-        # fuck if i know why in order to ask for a specific government,
-        # the header that needs to be set is this one,
-        # and its value needs to be the string "on"
-        # formdata = self._gov_num_static_formdata.copy()
-        formdata = {
-            "ctl00$ctl20$g_35b6db55_6fcf_4f5a_8632_254e3865d040$ctl00$cblGovernments$%s" % self.gov_index: "on"
-        }
-
-        # "submit form" requesting all pages from all governments
-        # using previously given session headers
-        yield scrapy.FormRequest.from_response(response,
-                                               formdata=formdata,
-                                               callback=self.parse_form_result)
+        # iterate over given gov. indexes
+        # and scrape each one
+        for i in self.gov_indexes:
+            # submit form request,
+            # requesting all pages from given government number
+            # using previously received session headers
+            yield FormRequest.from_response(
+                response,
+                formdata={self.gov_number_header_key % i: self.gov_number_header_value},
+                callback=self.parse_form_result)
 
     def parse_form_result(self, response):
         """parse resolution list page."""
