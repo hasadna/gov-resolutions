@@ -108,4 +108,11 @@ class ResolutionPipeline(object):
     def get_body(self, item):
         if len(item["body"]) == 0:
             raise ResolutionError("Body field is empty for item %s", item)
-        return '\n'.join(item["body"]).strip()
+        # return '\n'.join(item["body"]).strip()
+
+        # body is originally a list of lines
+        # it is intentionally not stripped
+        # some resolutions have custom css, tables,
+        # and other crap which i'd rather not process here,
+        # but in a later stage, unrelated to the scraper
+        return item["body"]
