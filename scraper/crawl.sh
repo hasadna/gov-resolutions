@@ -1,3 +1,3 @@
 #!/bin/sh
 set -ex
-for i in `seq 0 6`; do scrapy crawl resolutions -a gov_index=$i; done 
+scrapy crawl resolutions -a gov_indexes=0,1,2,3,4,5,6

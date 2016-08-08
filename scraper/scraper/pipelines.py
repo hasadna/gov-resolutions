@@ -17,6 +17,7 @@ class ResolutionError(RuntimeError):
 
 
 class ResolutionPipeline(object):
+    """Pipeline used for ResolutionSpider."""
     def __init__(self):
         self.file = None
         self.exporter = None
@@ -32,15 +33,18 @@ class ResolutionPipeline(object):
         self.gov_pattern = re.compile(r'^.+\s??\-\s?(?P<gov_number>.+?)\s+?(?P<pm_name>.+?);?$')
 
     def open_spider(self, spider):
-        self.file = open("gov_%s.json" % spider.gov_index, "wb")
+        """Initialize export JSON lines file."""
+        self.file = open("gov.json", "wb")
         self.exporter = JsonLinesItemExporter(self.file, ensure_ascii=False)
         self.exporter.start_exporting()
 
     def close_spider(self, spider):
+        """Close export file."""
         self.file.close()
         self.exporter.finish_exporting()
 
     def process_item(self, item, spider):
+        """Sanitize text for each field, and export to file."""
         try:
             data = {
                 'url': item["url"],
@@ -53,6 +57,10 @@ class ResolutionPipeline(object):
                 'body': self.get_body(item),
             }
         except ResolutionError as ex:
+            # if one of the fields fails sanitation,
+            # raise and exception
+            # and export the url leading to the specific resolution
+            # for later (human) review
             self.exporter.export_item({'error': repr(ex),
                                        'url': item["url"],
                                       })
@@ -100,4 +108,11 @@ class ResolutionPipeline(object):
     def get_body(self, item):
         if len(item["body"]) == 0:
             raise ResolutionError("Body field is empty for item %s", item)
-        return '\n'.join(item["body"]).strip()
+        # return '\n'.join(item["body"]).strip()
+
+        # body is originally a list of lines
+        # it is intentionally not stripped
+        # some resolutions have custom css, tables,
+        # and other crap which i'd rather not process here,
+        # but in a later stage, unrelated to the scraper
+        return item["body"]
