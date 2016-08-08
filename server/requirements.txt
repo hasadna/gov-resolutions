@@ -1,6 +1,4 @@
-arrow
 click
 flask
 hiredis
 redis
-scrapy
