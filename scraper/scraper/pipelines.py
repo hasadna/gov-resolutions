@@ -17,6 +17,7 @@ class ResolutionError(RuntimeError):
 
 
 class ResolutionPipeline(object):
+    """Pipeline used for ResolutionSpider."""
     def __init__(self):
         self.file = None
         self.exporter = None
@@ -38,10 +39,12 @@ class ResolutionPipeline(object):
         self.exporter.start_exporting()
 
     def close_spider(self, spider):
+        """Close export file."""
         self.file.close()
         self.exporter.finish_exporting()
 
     def process_item(self, item, spider):
+        """Sanitize text for each field, and export to file."""
         try:
             data = {
                 'url': item["url"],
@@ -54,6 +57,10 @@ class ResolutionPipeline(object):
                 'body': self.get_body(item),
             }
         except ResolutionError as ex:
+            # if one of the fields fails sanitation,
+            # raise and exception
+            # and export the url leading to the specific resolution
+            # for later (human) review
             self.exporter.export_item({'error': repr(ex),
                                        'url': item["url"],
                                       })

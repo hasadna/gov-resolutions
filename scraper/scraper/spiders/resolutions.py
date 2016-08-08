@@ -1,12 +1,15 @@
 # -*- coding: utf-8 -*-
 
-import scrapy
-from scrapy import exceptions
+from scrapy import (Spider,
+                    Request, FormRequest,
+                    exceptions,
+                    )
+
 from scraper.items import ResolutionItem
 
 
-class ResolutionSpider(scrapy.Spider):
-    """government resolutions spider using session data provided by pmo.gov.il website."""
+class ResolutionSpider(Spider):
+    """Government resolutions spider crawling pmo.gov.il website."""
     name = "resolutions"
     allowed_domains = ["www.pmo.gov.il"]
 
@@ -48,12 +51,13 @@ class ResolutionSpider(scrapy.Spider):
                     "gov_indexes list can only include integers ranging 0-6")
 
     def parse(self, response):
-        """submit a gov. resolution form for every gov. number and parse
+        """Submit a gov. resolution form for every given gov. number and parse.
 
-        there are 6 available governments, and their buttons are numbered 0 to 5.
-        this submits a form for each government separately,
-        since the gov. resolutions websites tends to get overloaded
-        and stop responding very quickly.
+        Currently there are 6 available governments,
+        and their buttons are confusingly numbered 0 to 5.
+
+        This function submits a form request for each government separately,
+        and paginates over results per gov.
         """
         # iterate over given gov. indexes
         # and scrape each one
@@ -67,11 +71,11 @@ class ResolutionSpider(scrapy.Spider):
                 callback=self.parse_form_result)
 
     def parse_form_result(self, response):
-        """parse resolution list page."""
+        """Parse resolution list page."""
         # parse resolutions found in current page
         for sel in response.xpath("//div[@id='GDSR']/div/a/@href"):
-            yield scrapy.Request(sel.extract(),
-                                 callback=self.parse_resolution)
+            yield Request(sel.extract(),
+                          callback=self.parse_resolution)
 
         # parse next pages
         # requires reusing (session) headers in order to keep form results
@@ -80,12 +84,12 @@ class ResolutionSpider(scrapy.Spider):
         # resolutions from the current government.
         for sel in response.xpath("//a[@class='PMM-resultsPagingNumber']/@href"):
             url = response.urljoin(sel.extract())
-            yield scrapy.Request(url,
-                                 headers=response.headers,
-                                 callback=self.parse_form_result)
+            yield Request(url,
+                          headers=response.headers,
+                          callback=self.parse_form_result)
 
     def parse_resolution(self, response):
-        """parse specific resolution page."""
+        """Parse specific resolution page."""
         try:
             yield ResolutionItem(
                 url=response.url,
